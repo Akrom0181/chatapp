@@ -1,98 +1,75 @@
-const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
-let ws;
-let currentRoom;
-let username = prompt("Enter your username:") || "Anonymous";
+document.addEventListener("DOMContentLoaded", () => {
+    const chatList = document.getElementById("chatList");
+    const messages = document.getElementById("messages");
+    const messageInput = document.getElementById("messageInput");
+    const chatArea = document.querySelector(".chat-area");
+    const chatHeader = document.getElementById("chatHeader");
+    const sidebar = document.querySelector(".sidebar");
 
-function connectToRoom(room) {
-    if (ws) ws.close();
-    
-    currentRoom = room;
-    document.getElementById('chatHeader').textContent = room;
-    document.getElementById('messages').innerHTML = '';
-    
-    ws = new WebSocket(`${protocol}${window.location.host}/ws?username=${
-        encodeURIComponent(username)}&room=${encodeURIComponent(room)}`);
-    
-    ws.onmessage = function(event) {
-        const msg = JSON.parse(event.data);
-        if (msg.type === 'roomList') {
-            updateRoomList(msg.rooms);
-        } else if (msg.type === 'message') {
-            addMessage(msg);
-        }
+    const ws = new WebSocket("ws://localhost:8080"); // WebSocket connection
+
+    // Create new chat room
+    window.createRoom = function () {
+        const roomInput = document.getElementById("roomInput");
+        const roomName = roomInput.value.trim();
+        if (!roomName) return;
+        
+        const chatItem = document.createElement("div");
+        chatItem.classList.add("chat-item");
+        chatItem.textContent = roomName;
+        chatItem.onclick = () => selectChat(roomName);
+        chatList.appendChild(chatItem);
+
+        roomInput.value = "";
     };
 
-    ws.onerror = function(error) {
-        console.error('WebSocket Error:', error);
-        alert('Connection error - please refresh the page');
-    };
-
-    ws.onclose = function() {
-        console.log('WebSocket connection closed');
-    };
-}
-
-function addMessage(msg) {
-    const div = document.createElement('div');
-    div.className = msg.username === username ? 'message self' : 'message';
-    
-    const date = new Date(msg.timestamp * 1000);
-    div.innerHTML = `
-        <div class="message-sender">${msg.username}</div>
-        <div class="message-content">${msg.content}</div>
-        <div class="message-time">${date.toLocaleTimeString([], { 
-            hour: '2-digit', 
-            minute: '2-digit'
-        })}</div>
-    `;
-    
-    const messages = document.getElementById('messages');
-    messages.appendChild(div);
-    messages.scrollTop = messages.scrollHeight;
-}
-
-function updateRoomList(rooms) {
-    const chatList = document.getElementById('chatList');
-    chatList.innerHTML = '';
-    
-    rooms.forEach(room => {
-        const div = document.createElement('div');
-        div.className = 'chat-item' + (room === currentRoom ? ' active' : '');
-        div.textContent = room;
-        div.setAttribute('data-room', room);
-        div.onclick = () => {
-            if (room !== currentRoom) {
-                connectToRoom(room);
-            }
-        };
-        chatList.appendChild(div);
-    });
-}
-
-function sendMessage() {
-    const input = document.getElementById('messageInput');
-    const message = input.value.trim();
-    
-    if (message && ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ content: message }));
-        input.value = '';
+    // Select chat room
+    function selectChat(roomName) {
+        chatHeader.textContent = roomName;
+        messages.innerHTML = "";
+        chatArea.classList.add("active");
+        sidebar.style.display = "none";
     }
-}
 
-function createRoom() {
-    const roomInput = document.getElementById('roomInput');
-    const room = roomInput.value.trim();
-    
-    if (room && !document.querySelector(`.chat-item[data-room="${room}"]`)) {
-        connectToRoom(room);
-        roomInput.value = '';
+    // Back button for mobile
+    const backButton = document.createElement("button");
+    backButton.textContent = "← Back";
+    backButton.style.background = "transparent";
+    backButton.style.border = "none";
+    backButton.style.color = "white";
+    backButton.style.fontSize = "1rem";
+    backButton.style.cursor = "pointer";
+    backButton.style.marginRight = "10px";
+    backButton.onclick = () => {
+        chatArea.classList.remove("active");
+        sidebar.style.display = "flex";
+    };
+    chatHeader.prepend(backButton);
+
+    // Send message
+    window.sendMessage = function () {
+        const text = messageInput.value.trim();
+        if (!text) return;
+
+        const msgObj = { message: text };
+        ws.send(JSON.stringify(msgObj)); // Send to WebSocket
+
+        displayMessage(text, "self"); // Display locally
+        messageInput.value = "";
+    };
+
+    // Display message in UI
+    function displayMessage(text, sender) {
+        const msgDiv = document.createElement("div");
+        msgDiv.classList.add("message", sender);
+        msgDiv.textContent = text;
+        messages.appendChild(msgDiv);
+        messages.scrollTop = messages.scrollHeight;
     }
-}
 
-// Initial connection
-connectToRoom('general');
-
-// Event listeners
-document.getElementById('messageInput').addEventListener('keypress', e => {
-    if (e.key === 'Enter') sendMessage();
+    // WebSocket message handler
+    ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        displayMessage(data.message, "other");
+    };
 });
