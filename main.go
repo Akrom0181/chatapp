@@ -64,13 +64,23 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 	username := r.URL.Query().Get("username")
 	room := r.URL.Query().Get("room")
 
+	mutex.Lock()
+	// Check if room already has 2 users
+	if len(rooms[room]) >= 2 {
+		conn.WriteJSON(Message{Type: "error", Content: "Room is full"})
+		mutex.Unlock()
+		return
+	}
+
 	client := &Client{conn: conn, username: username, room: room}
 
-	mutex.Lock()
+	// Initialize room if not exists
 	if rooms[room] == nil {
 		rooms[room] = make(map[*Client]bool)
 		broadcastRoomList()
 	}
+
+	// Add client to room
 	rooms[room][client] = true
 	clients[client] = true
 	mutex.Unlock()
