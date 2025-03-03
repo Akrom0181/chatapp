@@ -1,3 +1,4 @@
+const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
 let ws;
 let currentRoom;
 let username = prompt("Enter your username:") || "Anonymous";
@@ -9,7 +10,8 @@ function connectToRoom(room) {
     document.getElementById('chatHeader').textContent = room;
     document.getElementById('messages').innerHTML = '';
     
-    ws = new WebSocket(`ws://${window.location.host}/ws?username=${encodeURIComponent(username)}&room=${encodeURIComponent(room)}`);
+    ws = new WebSocket(`${protocol}${window.location.host}/ws?username=${
+        encodeURIComponent(username)}&room=${encodeURIComponent(room)}`);
     
     ws.onmessage = function(event) {
         const msg = JSON.parse(event.data);
@@ -18,6 +20,15 @@ function connectToRoom(room) {
         } else if (msg.type === 'message') {
             addMessage(msg);
         }
+    };
+
+    ws.onerror = function(error) {
+        console.error('WebSocket Error:', error);
+        alert('Connection error - please refresh the page');
+    };
+
+    ws.onclose = function() {
+        console.log('WebSocket connection closed');
     };
 }
 
@@ -29,7 +40,10 @@ function addMessage(msg) {
     div.innerHTML = `
         <div class="message-sender">${msg.username}</div>
         <div class="message-content">${msg.content}</div>
-        <div class="message-time">${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+        <div class="message-time">${date.toLocaleTimeString([], { 
+            hour: '2-digit', 
+            minute: '2-digit'
+        })}</div>
     `;
     
     const messages = document.getElementById('messages');
@@ -45,6 +59,7 @@ function updateRoomList(rooms) {
         const div = document.createElement('div');
         div.className = 'chat-item' + (room === currentRoom ? ' active' : '');
         div.textContent = room;
+        div.setAttribute('data-room', room);
         div.onclick = () => {
             if (room !== currentRoom) {
                 connectToRoom(room);
